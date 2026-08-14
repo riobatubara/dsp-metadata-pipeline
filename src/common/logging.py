@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from src.common.config import settings
 
 # How to use
 # from src.common.logging import logger
@@ -17,7 +18,7 @@ def setup_logging() -> logging.Logger:
     Example:
         LOG_LEVEL=DEBUG
     """
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level = settings.log_level
 
     logger = logging.getLogger("dsp_metadata_pipeline")
 
