@@ -78,6 +78,7 @@ class APIClient:
 
         response = self.session.post(
             url,
+            data=data,
             json=data,
             headers=headers,
             timeout=self.timeout,
