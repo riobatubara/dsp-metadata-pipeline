@@ -89,25 +89,3 @@ class YouTubeClient:
         )
 
         return items
-
-
-    def close(self) -> None:
-        """Close the underlying HTTP connection."""
-
-        http = getattr(self.youtube, "_http", None)
-
-        if http is not None and hasattr(http, "close"):
-            http.close()
-
-
-    def __enter__(self) -> "YouTubeClient":
-        return self
-
-
-    def __exit__(
-        self,
-        exc_type: Any,
-        exc_value: Any,
-        traceback: Any,
-    ) -> None:
-        self.close()
