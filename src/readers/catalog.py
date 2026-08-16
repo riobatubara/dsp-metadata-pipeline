@@ -89,10 +89,7 @@ def read_catalog(
             .str.strip()
         )
 
-        dataframe = dataframe[
-            (dataframe["original_artist"] != "")
-            & (dataframe["song_title"] != "")
-        ]
+        dataframe = dataframe[dataframe["song_title"] != ""]
 
         rows.extend(
             dataframe.to_dict(orient="records")
