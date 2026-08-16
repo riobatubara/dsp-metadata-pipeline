@@ -22,7 +22,7 @@ def create_database_engine() -> Engine:
         "Creating database engine: %s:%s/%s",
         settings.db_host,
         settings.db_port,
-        settings.db_db,
+        settings.db_name,
     )
 
     return create_engine(
