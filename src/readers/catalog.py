@@ -37,11 +37,10 @@ def scan_catalog(
     catalog_dir: Path = CATALOG_DIR,
 ) -> List[Dict[str, Any]]:
     """
-    Scan supported catalog files and check whether each file
-    has already been processed.
+    Scan catalog files and return only files that have not
+    been processed yet.
 
-    A file is considered previously processed when the same
-    filename and checksum exist in audit.catalog_file_log.
+    A file is identified by file_name + file_checksum.
     """
 
     if not catalog_dir.exists():
@@ -68,7 +67,7 @@ def scan_catalog(
         )
         return []
 
-    scanned_files: List[Dict[str, Any]] = []
+    files_to_process: List[Dict[str, Any]] = []
 
     with get_connection() as connection:
         for file in files:
@@ -91,32 +90,35 @@ def scan_catalog(
                 },
             )
 
-            already_processed = result.scalar() is not None
+            if result.scalar() is not None:
+                logger.info(
+                    "Skipping already processed catalog file: %s",
+                    file.name,
+                )
+                continue
 
-            scanned_files.append(
-                {
-                    "file_name": file.name,
-                    "file_path": str(file),
-                    "file_size": file_size,
-                    "file_checksum": file_checksum,
-                    "already_processed": already_processed,
-                }
-            )
+            file_info = {
+                "file_name": file.name,
+                "file_path": str(file),
+                "file_size": file_size,
+                "file_checksum": file_checksum,
+            }
+
+            files_to_process.append(file_info)
 
             logger.info(
-                "Catalog file: name=%s size=%d checksum=%s processed=%s",
+                "Catalog file queued: %s size=%d checksum=%s",
                 file.name,
                 file_size,
                 file_checksum,
-                already_processed,
             )
 
     logger.info(
-        "Catalog scan completed: %d files",
-        len(scanned_files),
+        "Catalog scan completed: %d file(s) to process",
+        len(files_to_process),
     )
 
-    return scanned_files
+    return files_to_process
 
 
 def normalize_text(value: object) -> str:
@@ -148,126 +150,102 @@ def dedup_key(value: str) -> str:
 
 
 def read_catalog(
-    catalog_dir: Path = CATALOG_DIR,
-) -> List[Dict[str, Any]]:
+    file_path: Path,
+) -> List[Dict[str, str]]:
     """
-    Read catalog files while preserving file boundaries.
+    Read and normalize one catalog file.
 
-    Each file contains its own metadata and normalized rows.
+    The file has already been selected by scan_catalog().
     """
 
-    if not catalog_dir.exists():
+    if not file_path.exists():
         raise FileNotFoundError(
-            f"Catalog directory does not exist: {catalog_dir}"
+            f"Catalog file does not exist: {file_path}"
         )
 
-    files = sorted(
-        file
-        for file in catalog_dir.iterdir()
-        if file.is_file()
-        and file.suffix.lower() in SUPPORTED_EXTENSIONS
-    )
-
-    if not files:
-        logger.warning(
-            "No catalog files found in %s",
-            catalog_dir,
-        )
-        return []
-
-    catalog_files: List[Dict[str, Any]] = []
-
-    for file in files:
-        logger.info("Reading catalog file: %s", file)
-
-        dataframe = _read_file(file)
-
-        dataframe.columns = [
-            column.strip().lower().replace(" ", "_")
-            for column in dataframe.columns
-        ]
-
-        required_columns = {
-            "original_artist",
-            "song_title",
-        }
-
-        missing_columns = required_columns - set(dataframe.columns)
-
-        if missing_columns:
-            raise ValueError(
-                f"{file} is missing required columns: "
-                f"{sorted(missing_columns)}"
-            )
-
-        dataframe = dataframe[
-            ["original_artist", "song_title"]
-        ].copy()
-
-        dataframe["original_artist"] = (
-            dataframe["original_artist"]
-            .fillna("")
-            .apply(normalize_text)
-        )
-
-        dataframe["song_title"] = (
-            dataframe["song_title"]
-            .fillna("")
-            .apply(normalize_text)
-        )
-
-        dataframe = dataframe[
-            dataframe["song_title"] != ""
-        ]
-
-        dataframe["_artist_key"] = (
-            dataframe["original_artist"]
-            .apply(dedup_key)
-        )
-
-        dataframe["_title_key"] = (
-            dataframe["song_title"]
-            .apply(dedup_key)
-        )
-
-        dataframe = dataframe[
-            dataframe["_title_key"] != ""
-        ]
-
-        dataframe = dataframe.drop_duplicates(
-            subset=[
-                "_artist_key",
-                "_title_key",
-            ],
-            keep="first",
-        )
-
-        rows = dataframe[
-            ["original_artist", "song_title"]
-        ].to_dict(orient="records")
-
-        catalog_files.append(
-            {
-                "file_name": file.name,
-                "file_path": str(file),
-                "file_size": file.stat().st_size,
-                "file_checksum": calculate_checksum(file),
-                "rows": rows,
-            }
-        )
-
-        logger.info(
-            "Catalog file read: %s (%d rows)",
-            file.name,
-            len(rows),
+    if not file_path.is_file():
+        raise ValueError(
+            f"Catalog path is not a file: {file_path}"
         )
 
     logger.info(
-        "Catalog reading completed: %d files",
-        len(catalog_files),
+        "Reading catalog file: %s",
+        file_path,
     )
 
-    return catalog_files
+    dataframe = _read_file(file_path)
+
+    dataframe.columns = [
+        column.strip().lower().replace(" ", "_")
+        for column in dataframe.columns
+    ]
+
+    required_columns = {
+        "original_artist",
+        "song_title",
+    }
+
+    missing_columns = required_columns - set(dataframe.columns)
+
+    if missing_columns:
+        raise ValueError(
+            f"{file_path} is missing required columns: "
+            f"{sorted(missing_columns)}"
+        )
+
+    dataframe = dataframe[
+        ["original_artist", "song_title"]
+    ].copy()
+
+    dataframe["original_artist"] = (
+        dataframe["original_artist"]
+        .fillna("")
+        .apply(normalize_text)
+    )
+
+    dataframe["song_title"] = (
+        dataframe["song_title"]
+        .fillna("")
+        .apply(normalize_text)
+    )
+
+    dataframe = dataframe[
+        dataframe["song_title"] != ""
+    ]
+
+    dataframe["_artist_key"] = (
+        dataframe["original_artist"]
+        .apply(dedup_key)
+    )
+
+    dataframe["_title_key"] = (
+        dataframe["song_title"]
+        .apply(dedup_key)
+    )
+
+    dataframe = dataframe[
+        dataframe["_title_key"] != ""
+    ]
+
+    dataframe = dataframe.drop_duplicates(
+        subset=[
+            "_artist_key",
+            "_title_key",
+        ],
+        keep="first",
+    )
+
+    rows = dataframe[
+        ["original_artist", "song_title"]
+    ].to_dict(orient="records")
+
+    logger.info(
+        "Catalog file read completed: %s (%d rows)",
+        file_path.name,
+        len(rows),
+    )
+
+    return rows
 
 
 def _read_file(file: Path) -> pd.DataFrame:
