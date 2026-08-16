@@ -54,8 +54,6 @@ class YouTubeClient:
 
         query = f"{artist} {song_title}" if artist else song_title
 
-        self._wait_for_rate_limit()
-
         response = (
             self.youtube.search()
             .list(
