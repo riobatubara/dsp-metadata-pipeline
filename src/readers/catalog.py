@@ -149,12 +149,11 @@ def dedup_key(value: str) -> str:
 
 def read_catalog(
     catalog_dir: Path = CATALOG_DIR,
-) -> List[Dict[str, str]]:
+) -> List[Dict[str, Any]]:
     """
-    Read all supported catalog files.
+    Read catalog files while preserving file boundaries.
 
-    Rows are normalized and deduplicated using
-    original_artist + song_title.
+    Each file contains its own metadata and normalized rows.
     """
 
     if not catalog_dir.exists():
@@ -176,7 +175,7 @@ def read_catalog(
         )
         return []
 
-    rows: List[Dict[str, str]] = []
+    catalog_files: List[Dict[str, Any]] = []
 
     for file in files:
         logger.info("Reading catalog file: %s", file)
@@ -205,7 +204,6 @@ def read_catalog(
             ["original_artist", "song_title"]
         ].copy()
 
-        # Normalize actual values.
         dataframe["original_artist"] = (
             dataframe["original_artist"]
             .fillna("")
@@ -222,7 +220,6 @@ def read_catalog(
             dataframe["song_title"] != ""
         ]
 
-        # Create deduplication keys.
         dataframe["_artist_key"] = (
             dataframe["original_artist"]
             .apply(dedup_key)
@@ -233,12 +230,10 @@ def read_catalog(
             .apply(dedup_key)
         )
 
-        # Remove rows where the normalized title is empty.
         dataframe = dataframe[
             dataframe["_title_key"] != ""
         ]
 
-        # Deduplicate within the current file.
         dataframe = dataframe.drop_duplicates(
             subset=[
                 "_artist_key",
@@ -247,50 +242,33 @@ def read_catalog(
             keep="first",
         )
 
-        rows.extend(
-            dataframe[
-                ["original_artist", "song_title"]
-            ].to_dict(orient="records")
+        rows = dataframe[
+            ["original_artist", "song_title"]
+        ].to_dict(orient="records")
+
+        catalog_files.append(
+            {
+                "file_name": file.name,
+                "file_path": str(file),
+                "file_size": file.stat().st_size,
+                "file_checksum": calculate_checksum(file),
+                "rows": rows,
+            }
         )
 
-    # Deduplicate again across all catalog files.
-    result = pd.DataFrame(rows)
-
-    if result.empty:
-        return []
-
-    result["_artist_key"] = (
-        result["original_artist"]
-        .apply(dedup_key)
-    )
-
-    result["_title_key"] = (
-        result["song_title"]
-        .apply(dedup_key)
-    )
-
-    before_dedup = len(result)
-
-    result = result.drop_duplicates(
-        subset=[
-            "_artist_key",
-            "_title_key",
-        ],
-        keep="first",
-    )
-
-    result = result[
-        ["original_artist", "song_title"]
-    ]
+        logger.info(
+            "Catalog file read: %s (%d rows)",
+            file.name,
+            len(rows),
+        )
 
     logger.info(
-        "Catalog reading completed: %d rows after deduplication "
-        "(removed %d duplicates)",
-        len(result),
-        before_dedup - len(result),
+        "Catalog reading completed: %d files",
+        len(catalog_files),
     )
 
-    return result.to_dict(orient="records")
+    return catalog_files
+
 
 def _read_file(file: Path) -> pd.DataFrame:
     """Read a supported catalog file."""
