@@ -46,12 +46,13 @@ def get_connection() -> Generator[Connection, None, None]:
     Transactions are committed on success and rolled back on failure.
     """
     connection = engine.connect()
+    transaction = connection.begin()
 
     try:
         yield connection
-        connection.commit()
+        transaction.commit()
     except Exception:
-        connection.rollback()
+        transaction.rollback()
         logger.exception("Database transaction failed")
         raise
     finally:
