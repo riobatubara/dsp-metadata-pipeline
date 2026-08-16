@@ -13,16 +13,16 @@ def create_database_engine() -> Engine:
 
     database_url = (
         f"postgresql+psycopg2://"
-        f"{settings.postgres_user}:{settings.postgres_password}"
-        f"@{settings.postgres_host}:{settings.postgres_port}"
-        f"/{settings.postgres_db}"
+        f"{settings.db_user}:{settings.db_password}"
+        f"@{settings.db_host}:{settings.db_port}"
+        f"/{settings.db_db}"
     )
 
     logger.info(
         "Creating database engine: %s:%s/%s",
-        settings.postgres_host,
-        settings.postgres_port,
-        settings.postgres_db,
+        settings.db_host,
+        settings.db_port,
+        settings.db_db,
     )
 
     return create_engine(
