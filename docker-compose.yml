@@ -1,0 +1,74 @@
+x-airflow-common: &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.10.2}
+  env_file:
+    - .env
+  environment: &airflow-common-env
+    AIRFLOW_PROJ_DIR: ${PWD}
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@postgres:${DB_PORT}/${DB_NAME}
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+    AIRFLOW_CONN_FS_DEFAULT: '{"conn_type": "fs", "extra": "{\"path\": \"/opt/airflow/catalog/\"}"}'
+    AIRFLOW__WEBSERVER__SECRET_KEY: "my_super_secret_key_123"
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./catalog:/opt/airflow/catalog
+    - ./src:/opt/airflow/src
+  user: "0:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - etl_pipeline_network
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    # Add this line here as well
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - etl_pipeline_network
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    restart: always
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    command: version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: airflow
+
+volumes:
+  postgres-data:
+
+networks:
+  etl_pipeline_network:
+    name: etl_pipeline_network
