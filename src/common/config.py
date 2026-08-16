@@ -22,11 +22,11 @@ class Settings:
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
 
     # PostgreSQL
-    postgres_host: str = os.getenv("POSTGRES_HOST", "postgres")
-    postgres_port: int = int(os.getenv("POSTGRES_PORT", "5432"))
-    postgres_db: str = os.getenv("POSTGRES_DB", "music_metadata")
-    postgres_user: str = os.getenv("POSTGRES_USER", "postgres")
-    postgres_password: str = os.getenv("POSTGRES_PASSWORD", "postgres")
+    db_host: str = os.getenv("DB_HOST", "postgres")
+    db_port: int = int(os.getenv("DB_PORT", "5432"))
+    db_db: str = os.getenv("DB_DB", "music_metadata")
+    db_user: str = os.getenv("DB_USER", "postgres")
+    db_password: str = os.getenv("DB_PASSWORD", "postgres")
 
     # Spotify
     spotify_client_id: str = os.getenv("SPOTIFY_CLIENT_ID", "")
