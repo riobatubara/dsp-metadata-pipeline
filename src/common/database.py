@@ -15,7 +15,7 @@ def create_database_engine() -> Engine:
         f"postgresql+psycopg2://"
         f"{settings.db_user}:{settings.db_password}"
         f"@{settings.db_host}:{settings.db_port}"
-        f"/{settings.db_db}"
+        f"/{settings.db_name}"
     )
 
     logger.info(
