@@ -128,22 +128,19 @@ def clean_spotify_metadata(
             "album_name": _clean_text(album_info.get("name")),
             "normalize_album_name": _normalize_text(album_info.get("name")),
             "release_date": _standardize_date(release_date)
-            # create clean date
         }
 
-    song_id = metadata.get("id")
-    if song_id:
-        recording_title = metadata.get("name")
-        spotify_metadata["song"] = {
-            "song_id": _clean_text(song_id),
-            "recording_title": _clean_text(recording_title),
-            "normalized_title": _normalize_text(recording_title),
-            "release_date": _standardize_date(release_date),
-            "album_id": album_id
-        }
+
+    recording_title = metadata.get("name")
+    spotify_metadata["song"] = {
+        "recording_title": _clean_text(recording_title),
+        "normalized_title": _normalize_text(recording_title),
+        "release_date": _standardize_date(release_date),
+        "album_id": album_id
+    }
 
     isrc_code = metadata.get("external_ids", {}).get("isrc")
-    if song_id and isrc_code:
+    if isrc_code:
         spotify_metadata["song_isrc"] = _normalize_isrc(isrc_code)
 
     return spotify_metadata
