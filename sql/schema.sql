@@ -290,3 +290,45 @@ CREATE TABLE IF NOT EXISTS core.song_youtube_video (
 
 CREATE INDEX IF NOT EXISTS idx_song_youtube_song_id
     ON core.song_youtube_video (song_id);
+
+
+-- MART (Reporting & Presentation Layer)
+-- Purpose: Denormalized, pre-joined tables and views optimized for BI and fast analytical querying.
+CREATE SCHEMA IF NOT EXISTS mart;
+
+-- Denormalized Wide Table for Song Cross-Platform Matching & Reporting
+CREATE TABLE IF NOT EXISTS mart.fact_song_cross_platform_matches (
+    song_id BIGINT PRIMARY KEY,
+    recording_title TEXT NOT NULL,
+    normalized_title TEXT NOT NULL,
+    release_date DATE,
+    album_id TEXT,
+    album_name TEXT,
+    artist_ids TEXT[],
+    artist_names TEXT[],
+    spotify_track_id BIGINT,
+    isrc TEXT,
+    youtube_video_id TEXT,
+    youtube_video_title TEXT,
+    youtube_channel_id TEXT,
+    youtube_channel_name TEXT,
+    match_method TEXT,
+    match_confidence NUMERIC(5,4),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mart_cross_match_confidence ON mart.fact_song_cross_platform_matches (match_confidence);
+CREATE INDEX IF NOT EXISTS idx_mart_cross_match_isrc ON mart.fact_song_cross_platform_matches (isrc);
+
+-- Aggregated Mart Table for Artist Coverage & Matching Performance
+CREATE TABLE IF NOT EXISTS mart.agg_artist_platform_coverage (
+    artist_id TEXT PRIMARY KEY,
+    artist_name TEXT NOT NULL,
+    total_songs BIGINT NOT NULL DEFAULT 0,
+    songs_with_spotify BIGINT NOT NULL DEFAULT 0,
+    songs_with_youtube_match BIGINT NOT NULL DEFAULT 0,
+    avg_match_confidence NUMERIC(5,4),
+    last_computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mart_agg_artist_name ON mart.agg_artist_platform_coverage (artist_name);
