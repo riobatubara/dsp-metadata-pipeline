@@ -46,3 +46,7 @@ Access the running interactive PostgreSQL shell inside the container to verify t
 ```bash
 docker exec -it dsp-metadata-pipeline-postgres-1 psql -U dsp -d music_metadata
 ```
+
+
+### Architecture
+![Architecture Diagram](./architecture.png)
