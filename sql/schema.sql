@@ -5,6 +5,7 @@
 --   audit = pipeline execution and data-quality tracking
 --   raw   = immutable Spotify / YouTube API payloads
 --   core  = cleaned / standardized analytical data
+--   mart  = reporting & presentation Layer
 --
 -- Google Sheets catalog:
 --   Used only as input parameters for Spotify / YouTube searches.
@@ -292,7 +293,7 @@ CREATE INDEX IF NOT EXISTS idx_song_youtube_song_id
     ON core.song_youtube_video (song_id);
 
 
--- MART (Reporting & Presentation Layer)
+
 -- Purpose: Denormalized, pre-joined tables and views optimized for BI and fast analytical querying.
 CREATE SCHEMA IF NOT EXISTS mart;
 
