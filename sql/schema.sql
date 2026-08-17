@@ -1,4 +1,4 @@
--- Music Metadata Pipeline
+-- DSP Metadata Pipeline
 -- PostgreSQL Schema
 --
 -- Layers:
