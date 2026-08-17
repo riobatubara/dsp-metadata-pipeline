@@ -50,3 +50,7 @@ docker exec -it dsp-metadata-pipeline-postgres-1 psql -U dsp -d music_metadata
 
 ### Architecture
 ![Architecture Diagram](./architecture.png)
+
+
+### ERD
+![ERD Diagram](./ERD.png)
