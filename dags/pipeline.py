@@ -452,6 +452,112 @@ def mark_catalog_files_processed(**context: Any) -> None:
             catalog_file["file_name"],
         )
 
+
+def run_data_quality_checks(**context: Any) -> None:
+    ti = context["ti"]
+
+    spotify_ingestion_ids = ti.xcom_pull(
+        task_ids="extract_catalog",
+        key="spotify_ingestion_ids",
+    ) or []
+
+    youtube_ingestion_ids = ti.xcom_pull(
+        task_ids="extract_catalog",
+        key="youtube_ingestion_ids",
+    ) or []
+
+    spotify_records = ti.xcom_pull(
+        task_ids="transform_and_load",
+        key="spotify_records_processed",
+    ) or 0
+
+    youtube_records = ti.xcom_pull(
+        task_ids="transform_and_load",
+        key="youtube_records_processed",
+    ) or 0
+
+    checks = []
+
+    for ingestion_id in spotify_ingestion_ids:
+        checks.append(
+            (
+                ingestion_id,
+                "spotify_raw_records",
+                "raw.spotify",
+                spotify_records > 0,
+                spotify_records,
+            )
+        )
+
+    for ingestion_id in youtube_ingestion_ids:
+        checks.append(
+            (
+                ingestion_id,
+                "youtube_raw_records",
+                "raw.youtube",
+                youtube_records > 0,
+                youtube_records,
+            )
+        )
+
+    with get_connection() as connection:
+        for (
+            ingestion_id,
+            check_name,
+            table_name,
+            passed,
+            records_checked,
+        ) in checks:
+
+            status = "PASS" if passed else "WARNING"
+
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO audit.data_quality_log (
+                        ingestion_id,
+                        check_name,
+                        table_name,
+                        status,
+                        records_checked,
+                        records_failed
+                    )
+                    VALUES (
+                        :ingestion_id,
+                        :check_name,
+                        :table_name,
+                        :status,
+                        :records_checked,
+                        :records_failed
+                    )
+                    """
+                ),
+                {
+                    "ingestion_id": ingestion_id,
+                    "check_name": check_name,
+                    "table_name": table_name,
+                    "status": status,
+                    "records_checked": records_checked,
+                    "records_failed": (
+                        0 if passed else records_checked
+                    ),
+                },
+            )
+
+            if not passed:
+                logger.warning(
+                    "Data quality warning: %s ingestion_id=%s",
+                    check_name,
+                    ingestion_id,
+                )
+
+    logger.info(
+        "Data quality checks completed: spotify=%d youtube=%d",
+        spotify_records,
+        youtube_records,
+    )
+
+
 with DAG(
     dag_id="etl_pipeline",
     start_date=datetime(2026, 1, 1),
@@ -480,10 +586,15 @@ with DAG(
         python_callable=mark_catalog_files_processed,
     )
 
-    # scan_catalog_operator >> extract_catalog_operator
+    run_data_quality_checks_operator = PythonOperator(
+        task_id="run_data_quality_checks",
+        python_callable=run_data_quality_checks,
+    )
+
     (
         scan_catalog_operator
         >> extract_catalog_operator
         >> transform_and_load_operator
+        >> run_data_quality_checks_operator
         >> mark_catalog_files_processed_operator
     )
